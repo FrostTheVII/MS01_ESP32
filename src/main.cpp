@@ -3,8 +3,18 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <NTPClient.h>
+#include <DHT.h>
+#include <DHT_U.h>
 
 #define SENSOR_PIN 25 // Digital pin of MS01 sensor
+#define SENSOR_PIN_1 26
+#define SENSOR_PIN_2 27
+#define SENSOR_PIN_3 9
+#define SENSOR_PIN_DHT 10
+// #define SENSOR_PIN_ANAG 36
+#define BATTERY_PIN 35
+
+#define DHTTYPE DHT22
 
 /*   Sidenotes
   Pequeno pormenor na accuracy das medições, a Sonoff não tem documentação nenhuma
@@ -24,9 +34,11 @@ const char *ssid = "";     // SSID
 const char *password = ""; // PASSWORD
 const char *broker = "broker.hivemq.com";
 const int tcpPort = 1883;
-const char *mqttid = "MS01-ESP32/hum";
+String mqttid[7] = {"gpr/temperature", "gpr/humidity0", "gpr/humidity1", "gpr/humidity2", "gpr/humidity3", "gpr/humidity4", "gpr/batery_voltage"};
 String msg;
-float hum = 0;
+float hum[4] = {0};
+float dht_vals[2] = {0};
+float bat_volt = 0;
 int curr_time = 0;
 int prev_update_ntp_time = 0;
 int prev_update_epoch_time = 0;
@@ -40,6 +52,8 @@ NTPClient ntp_client(wifi_udp_client, ntp_Server, gmt_offset_sec, daylight_offse
 
 WiFiClient espClient;
 PubSubClient client(espClient);
+
+DHT dht(SENSOR_PIN_DHT, DHTTYPE);
 
 TaskHandle_t task_loop1;
 
@@ -57,7 +71,10 @@ void reconnect()
     if (client.connect(clientId.c_str()))
     {
       Serial.println("Connected");
-      client.publish(mqttid, "MQTT Server is Connected");
+      for (int i = 0; i < 7; i++)
+      {
+        client.publish(mqttid[i].c_str(), "MQTT Server is Connected");
+      }
     }
     else
     {
@@ -139,10 +156,23 @@ void another_loop1()
   client.loop();
 
   // snprintf(msg, 100, "RH is: %.2f", hum);
-  msg = convert_epoch_time_to_string() + " " + String(hum);
-  client.publish(mqttid, msg.c_str());
+  for (int i = 0; i < 2; i++)
+  {
+    msg = convert_epoch_time_to_string() + " " + String(dht_vals[i]);
+    client.publish(mqttid[i].c_str(), msg.c_str());
+  }
 
-  delay(2500);
+  for (int j = 0; j < 4; j++)
+  {
+    msg = convert_epoch_time_to_string() + " " + String(hum[j]);
+    client.publish(mqttid[j + 2].c_str(), msg.c_str());
+  }
+
+  bat_volt = (float)(analogRead(BATTERY_PIN)) / 4095.0 * 14.4;
+  msg = convert_epoch_time_to_string() + " " + String(bat_volt);
+  client.publish(mqttid[6].c_str(), msg.c_str());
+
+  delay(3500);
 }
 
 void esploop1(void *param)
@@ -158,6 +188,11 @@ void setup()
 {
   Serial.begin(9600);
   MS01.pin = SENSOR_PIN;
+  MS01_1.pin = SENSOR_PIN_1;
+  MS01_2.pin = SENSOR_PIN_2;
+  MS01_3.pin = SENSOR_PIN_3;
+
+  dht.begin();
   xTaskCreatePinnedToCore(
       esploop1,
       "mqtt_task",
@@ -172,13 +207,52 @@ void loop()
 {
   if (MS01.Read())
   {
-    hum = MS01.h;
+    hum[0] = MS01.h;
     Serial.println(MS01.h);
   }
   else
   {
     Serial.println("Error");
   }
+
+  delay(100);
+
+  if (MS01_1.Read())
+  {
+    hum[1] = MS01_1.h;
+    Serial.println(MS01_1.h);
+  }
+  else
+  {
+    Serial.println("Error");
+  }
+
+  delay(100);
+
+  if (MS01_2.Read())
+  {
+    hum[2] = MS01_2.h;
+    Serial.println(MS01_2.h);
+  }
+  else
+  {
+    Serial.println("Error");
+  }
+
+  delay(100);
+
+  if (MS01_3.Read())
+  {
+    hum[3] = MS01_3.h;
+    Serial.println(MS01_3.h);
+  }
+  else
+  {
+    Serial.println("Error");
+  }
+
+  dht_vals[0] = dht.readTemperature(); // DHT TEMPERATURE
+  dht_vals[1] = dht.readHumidity();    // DHT HUMIDITY
 
   delay(2000);
 }
