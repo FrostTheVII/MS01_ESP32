@@ -6,9 +6,9 @@
 #include <DHT.h>
 #include <DHT_U.h>
 
-#define SENSOR_PIN 25 // Digital pin of MS01 sensor
+#define SENSOR_PIN 27 // Digital pin of MS01 sensor
 #define SENSOR_PIN_1 26
-#define SENSOR_PIN_2 27
+#define SENSOR_PIN_2 25
 #define SENSOR_PIN_3 9
 #define SENSOR_PIN_DHT 10
 // #define SENSOR_PIN_ANAG 36
@@ -30,9 +30,9 @@
   (NÃO ALTERAR TIMMINGS)
 */
 
-const char *ssid = "";     // SSID
-const char *password = ""; // PASSWORD
-const char *broker = "broker.hivemq.com";
+const char *ssid = "Guilherme's Galaxy S23 Ultra"; // SSID
+const char *password = "virusftw2170";             // PASSWORD
+const char *broker = "vcriis01.inesctec.pt";
 const int tcpPort = 1883;
 String mqttid[7] = {"gpr/temperature", "gpr/humidity0", "gpr/humidity1", "gpr/humidity2", "gpr/humidity3", "gpr/humidity4", "gpr/batery_voltage"};
 String msg;
@@ -42,6 +42,7 @@ float bat_volt = 0;
 int curr_time = 0;
 int prev_update_ntp_time = 0;
 int prev_update_epoch_time = 0;
+bool tst = true;
 
 const char *ntp_Server = "pool.ntp.org";
 const int32_t gmt_offset_sec = 0;      // adjust to Portugal timezone
@@ -165,7 +166,15 @@ void another_loop1()
   for (int j = 0; j < 4; j++)
   {
     msg = convert_epoch_time_to_string() + " " + String(hum[j]);
-    client.publish(mqttid[j + 2].c_str(), msg.c_str());
+    if (client.publish(mqttid[j + 2].c_str(), msg.c_str()))
+    {
+      tst = true;
+      Serial.println("Published.");
+    }
+    else
+    {
+      tst = false;
+    }
   }
 
   bat_volt = (float)(analogRead(BATTERY_PIN)) / 4095.0 * 14.4;
@@ -190,7 +199,10 @@ void setup()
   MS01.pin = SENSOR_PIN;
   MS01_1.pin = SENSOR_PIN_1;
   MS01_2.pin = SENSOR_PIN_2;
+  // MS01_2.delay_lo = 400;
   MS01_3.pin = SENSOR_PIN_3;
+  // MS01_2.delay_lo = 400;
+  pinMode(LED_BUILTIN, OUTPUT);
 
   dht.begin();
   xTaskCreatePinnedToCore(
@@ -251,8 +263,17 @@ void loop()
     Serial.println("Error");
   }
 
+  if (tst)
+  {
+    digitalWrite(LED_BUILTIN, HIGH);
+  }
+  else
+  {
+    digitalWrite(LED_BUILTIN, LOW);
+  }
+
   dht_vals[0] = dht.readTemperature(); // DHT TEMPERATURE
   dht_vals[1] = dht.readHumidity();    // DHT HUMIDITY
 
-  delay(2000);
+  delay(2500);
 }
